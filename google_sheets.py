@@ -1,8 +1,11 @@
 import gspread
 import os
+from dotenv import load_dotenv
+
+load_dotenv() 
 
 CREDENTIALS_FILE = "credentials.json"
-SPREADSHEET_KEY_OR_URL = "https://docs.google.com/spreadsheets/d/1WsQuyb4MoFCq195dIenaprtkTxn30SR_rEvf_a6pYOY/edit?gid=0#gid=0"
+SPREADSHEET_KEY_OR_URL = os.getenv("SHEET_URL")
 
 def get_google_sheets_client():
     """Autentica com as credenciais fornecidas no credentials.json"""
