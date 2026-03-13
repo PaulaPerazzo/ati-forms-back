@@ -20,6 +20,13 @@ async def submit_form(request: Request):
         data = await request.json()
         print(f"Dados recebidos do form: {data}")
 
+        fields_to_process = ['llmModel', 'sizeModel', 'frameworks']
+
+        for field in fields_to_process:
+            if field in data and data[field]:
+                cleaned_values = [v.strip().lower() for v in str(data[field]).split(',') if v.strip()]
+                data[field] = ",".join(cleaned_values)
+
         if 'status' not in data:
             data['status'] = "Não iniciado"
             
@@ -129,7 +136,7 @@ async def calculate_priorities():
                 "extEfficiency": "Benefit",
                 "intEfficiency": "Benefit",
                 "legalRequirements": "Cost",
-                "frequency": "Benefit"
+                "frequency": "Cost"
             },
             "profile_matrix": {
                 "Classe A (Maior Prioridade)": {
