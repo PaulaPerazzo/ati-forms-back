@@ -111,3 +111,26 @@ def update_project_status(row_index: int, status: str):
     
     except Exception as e:
         raise Exception(f"Erro ao atualizar o status na planilha: {e}")
+
+def update_project_priority(row_index: int, priority: str):
+    """Atualiza a coluna 'manual_priority' de uma linha específica."""
+    client = get_google_sheets_client()
+    
+    try:
+        if SPREADSHEET_KEY_OR_URL.startswith("http"):
+            sheet = client.open_by_url(SPREADSHEET_KEY_OR_URL).sheet1
+        else:
+            sheet = client.open_by_key(SPREADSHEET_KEY_OR_URL).sheet1
+        
+        headers = sheet.row_values(1)
+    
+        if "manual_priority" not in headers:
+            priority_col_index = len(headers) + 1
+            sheet.update_cell(1, priority_col_index, "manual_priority")
+        else:
+            priority_col_index = headers.index("manual_priority") + 1
+        
+        sheet.update_cell(row_index, priority_col_index, priority)
+    
+    except Exception as e:
+        raise Exception(f"Erro ao atualizar a prioridade manual na planilha: {e}")

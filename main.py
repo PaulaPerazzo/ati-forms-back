@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, Any
-from google_sheets import append_to_sheet, get_all_data, update_project_status
+from google_sheets import append_to_sheet, get_all_data, update_project_status, update_project_priority
 from ftopsis import run_ftopsis
 
 app = FastAPI()
@@ -18,7 +18,6 @@ app.add_middleware(
 async def submit_form(request: Request):
     try:
         data = await request.json()
-        print(f"Dados recebidos do form: {data}")
 
         fields_to_process = ['llmModel', 'sizeModel', 'frameworks']
 
@@ -54,6 +53,23 @@ async def update_status(row_index: int, request: Request):
     except Exception as e:
         print(f"Erro ao atualizar status: {e}")
         return {"error": "Erro ao atualizar status.", "details": str(e)}
+
+@app.patch("/api/projects/{row_index}/priority")
+async def update_priority(row_index: int, request: Request):
+    try:
+        data = await request.json()
+        new_priority = data.get("manual_priority")
+        
+        if not new_priority:
+            return {"error": "Prioridade não fornecida."}
+        
+        update_project_priority(row_index, new_priority)
+        
+        return {"message": "Prioridade atualizada com sucesso!"}
+    
+    except Exception as e:
+        print(f"Erro ao atualizar prioridade: {e}")
+        return {"error": "Erro ao atualizar prioridade.", "details": str(e)}
 
 @app.get("/api/priorities")
 async def calculate_priorities():
@@ -174,19 +190,25 @@ async def calculate_priorities():
         ftopsis_results = run_ftopsis(data_ftopsis)
         classification = ftopsis_results["results"]["classification"]
 
-        print("classification", classification)
-        print("ftopsis_results", ftopsis_results["results"])
-
         final_response = []
 
         for r in records:
             title = r.get("projectTitle")
+            
             p_class = classification.get(title, "Finalizado" if r.get("status") == "Finalizado" else "S/Classificação")
             
             # proximidade com a Classe A para ordenação
             proximities = ftopsis_results["results"]["proximities"].get(title, {})
             proximity_to_a = proximities.get("Classe A (Maior Prioridade)", 0)
             
+            manual_priority = r.get("manual_priority", "")
+            is_manual_priority = False
+
+            if manual_priority and manual_priority != "Automático":
+                p_class = manual_priority
+                proximity_to_a = 2.0  # Force it to go the top
+                is_manual_priority = True
+
             final_response.append({
                 "projectTitle": title,
                 "responsibleName": r.get("clientName"),
@@ -196,6 +218,7 @@ async def calculate_priorities():
                 "row_index": r.get("row_index"),
                 "priority_class": p_class,
                 "proximity_to_a": proximity_to_a,
+                "is_manual_priority": is_manual_priority,
                 "full_data": r
             })
         
