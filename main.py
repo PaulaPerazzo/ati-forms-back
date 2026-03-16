@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, Any
-from google_sheets import append_to_sheet, get_all_data, update_project_status, update_project_priority
+from database import append_to_sheet, get_all_data, update_project_status, update_project_priority
 from ftopsis import run_ftopsis
 
 app = FastAPI()
@@ -38,7 +38,7 @@ async def submit_form(request: Request):
         return {"error": "Erro no servidor ao processar a requisição.", "details": str(e)}
 
 @app.patch("/api/projects/{row_index}/status")
-async def update_status(row_index: int, request: Request):
+async def update_status(row_index: str, request: Request):
     try:
         data = await request.json()
         new_status = data.get("status")
@@ -55,7 +55,7 @@ async def update_status(row_index: int, request: Request):
         return {"error": "Erro ao atualizar status.", "details": str(e)}
 
 @app.patch("/api/projects/{row_index}/priority")
-async def update_priority(row_index: int, request: Request):
+async def update_priority(row_index: str, request: Request):
     try:
         data = await request.json()
         new_priority = data.get("manual_priority")
@@ -86,19 +86,32 @@ async def calculate_priorities():
                 valid_records.append(r)
         
         if not valid_records:
-            return [
-                {
+            final_response = []
+            for r in records:
+                p_class = "Finalizado" if r.get("status") == "Finalizado" else "S/Classificação"
+                
+                manual_priority = r.get("manual_priority", "")
+                is_manual_priority = False
+                proximity_to_a = 0
+
+                if manual_priority and manual_priority != "Automático" and r.get("status") != "Finalizado":
+                    p_class = manual_priority
+                    proximity_to_a = 2.0  
+                    is_manual_priority = True
+
+                final_response.append({
                     "projectTitle": r.get("projectTitle"),
                     "responsibleName": r.get("clientName"),
                     "email": r.get("email"),
                     "responsibleBody": r.get("organization"),
                     "status": r.get("status", "Não iniciado"),
                     "row_index": r.get("row_index"),
-                    "priority_class": "N/A",
-                    "proximity_to_a": 0,
+                    "priority_class": p_class,
+                    "proximity_to_a": proximity_to_a,
+                    "is_manual_priority": is_manual_priority,
                     "full_data": r
-                } for r in records
-            ]
+                })
+            return final_response
 
         alternatives = [str(r.get("projectTitle")) for r in valid_records]
         
@@ -204,7 +217,7 @@ async def calculate_priorities():
             manual_priority = r.get("manual_priority", "")
             is_manual_priority = False
 
-            if manual_priority and manual_priority != "Automático":
+            if manual_priority and manual_priority != "Automático" and r.get("status") != "Finalizado":
                 p_class = manual_priority
                 proximity_to_a = 2.0  # Force it to go the top
                 is_manual_priority = True
