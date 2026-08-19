@@ -1,26 +1,40 @@
-import gspread
+import json
 import os
+import gspread
 from dotenv import load_dotenv
 
-load_dotenv() 
+load_dotenv()
 
-CREDENTIALS_FILE = "credentials.json"
 SPREADSHEET_KEY_OR_URL = os.getenv("SHEET_URL")
 
 def get_google_sheets_client():
-    """Autentica com as credenciais fornecidas no credentials.json"""
-    if not os.path.exists(CREDENTIALS_FILE):
-        raise FileNotFoundError(
-            f"Arquivo de credenciais '{CREDENTIALS_FILE}' não encontrado. "
-            "Por favor, siga as instruções no README e coloque o arquivo na pasta back-end."
-        )
-
-    try:
-        client = gspread.service_account(filename=CREDENTIALS_FILE)    
-        return client
+    """
+    Autentica com o Google Sheets:
+    1. Tenta usar a variável de ambiente GOOGLE_CREDENTIALS_JSON (para Vercel / Produção).
+    2. Se não existir, tenta carregar o arquivo local credentials.json (para desenvolvimento local).
+    """
+    credentials_json = os.getenv("GOOGLE_CREDENTIALS_JSON")
     
-    except Exception as e:
-        raise Exception(f"Erro de autenticação com o Google. Certifique-se de que o arquivo JSON é válido: {e}")
+    # 1. Se estiver na Vercel (ou tiver a env configurada)
+    if credentials_json:
+        try:
+            credentials_dict = json.loads(credentials_json)
+            return gspread.service_account_from_dict(credentials_dict)
+        except Exception as e:
+            raise Exception(f"Erro ao ler GOOGLE_CREDENTIALS_JSON da variável de ambiente: {e}")
+
+    # 2. Fallback para desenvolvimento local usando o arquivo credentials.json
+    CREDENTIALS_FILE = "credentials.json"
+    if os.path.exists(CREDENTIALS_FILE):
+        try:
+            return gspread.service_account(filename=CREDENTIALS_FILE)
+        except Exception as e:
+            raise Exception(f"Erro de autenticação com o arquivo local {CREDENTIALS_FILE}: {e}")
+
+    raise FileNotFoundError(
+        "Nenhuma credencial do Google encontrada. "
+        "Configure GOOGLE_CREDENTIALS_JSON nas variáveis de ambiente da Vercel ou adicione o arquivo credentials.json localmente."
+    )
 
 def append_to_sheet(data_dict: dict):
     """
